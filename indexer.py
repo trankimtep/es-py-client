@@ -6,6 +6,7 @@ import subprocess
 from elasticsearch_connector import ElasticsearchConnector
 # from log_to_doc_converter import LogToDocConverter
 import requests
+from datetime import datetime
 
 class Indexer:
     def __init__(self, es_endpoint, queue, service):
@@ -24,37 +25,74 @@ class Indexer:
 
     def stop_indexing(self):
         self.stop_event.set()
-        self.thread.join()
+        self.thread.join() 
 
-    # def gen_id(self, es_endpoint, index_name):
-
-    #     if es_endpoint.endswith('/'):
-    #         es_endpoint = es_endpoint[:-1]
-
-    #     url = f"{es_endpoint}/{index_name}/_count"
+    def create_index(self, es_endpoint, index_name):
+        # Construct the URL for the index
+        url = f"{es_endpoint}/{index_name}/_settings"
         
-    #     try:
-    #         response = requests.get(url)
-    #         if response.status_code == 404:
-    #             # If index does not exist, return 1
-    #             return 1
-    #         response.raise_for_status()  # Raises a HTTPError if the HTTP request returned an unsuccessful status code
-    #         result = response.json()
-    #         return int(result.get("count", 0)) + 1
-    #     except requests.RequestException as e:
-    #         raise Exception(f"HTTP request error: {e}") 
+        # Optional: Define the index settings and mappings (if needed)
+        # If you don't need to specify settings or mappings, you can omit the `data` parameter in the request
+        index_configuration = {
+            "settings": {
+                "index.default_pipeline": "add-timestamp" 
+            }
+        }
+        
+        # Send the PUT request to create or update the index
+        headers = {'Content-Type': 'application/json'}
+        response = requests.put(url, headers=headers, json=index_configuration)
+        
+        # Check if the request was successful
+        if response.status_code in [200, 201]:  # 200 OK or 201 Created
+            print(f"Index '{index_name}' created or updated successfully.")
+        else:
+            print(f"Failed to create or update index. Status code: {response.status_code}, Response: {response.text}")
+
+    def create_timestamp_pipeline(self, es_endpoint):
+        # Construct the URL for the ingest pipeline API
+        url = f"{es_endpoint}/_ingest/pipeline/add-timestamp"
+        
+        # Define the payload for the pipeline
+        payload = {
+            "processors": [
+                {
+                    "set": {
+                        "field": "timestamp",
+                        "value": "{{_ingest.timestamp}}"
+                    }
+                }
+            ]
+        }
+        
+        # Send the PUT request
+        headers = {'Content-Type': 'application/json'}
+        response = requests.put(url, headers=headers, data=json.dumps(payload))
+        
+        # Check if the request was successful
+        if response.status_code == 200:
+            print("Ingest pipeline created successfully.")
+        else:
+            print(f"Failed to create ingest pipeline. Status code: {response.status_code}, Response: {response.text}")
 
     def check_and_index(self):
         print (f"Indexing doc to {self.service}_log")
         index_name = self.service + "_log"
+        self.create_timestamp_pipeline(self.es_endpoint)
+        self.create_index(self.es_endpoint, index_name)
         # count = self.gen_id(self.es_endpoint, index_name)
         count = 1
         while not self.stop_event.is_set():
             try:
                 if not self.queue.empty():
                     document = self.queue.get()
-                    print(document)                    
-                    self.index_document(index_name, count, document)
+                    json_obj = json.loads(document)
+                    timestamp_microseconds = int(json_obj['__REALTIME_TIMESTAMP'])
+                    timestamp_seconds = timestamp_microseconds / 1_000_000
+                    date_time_obj = str(datetime.fromtimestamp(timestamp_seconds))
+                    json_obj['__REALTIME_TIMESTAMP'] = date_time_obj
+                    print (json_obj)              
+                    self.index_document(index_name, count, json_obj)
                     # print(index_name + count + "\n")
                     count += 1
             except Exception as e:
