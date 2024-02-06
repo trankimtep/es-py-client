@@ -87,11 +87,7 @@ class Indexer:
                 if not self.queue.empty():
                     document = self.queue.get()
                     json_obj = json.loads(document)
-                    timestamp_microseconds = int(json_obj['__REALTIME_TIMESTAMP'])
-                    timestamp_seconds = timestamp_microseconds / 1_000_000
-                    date_time_obj = str(datetime.fromtimestamp(timestamp_seconds))
-                    json_obj['__REALTIME_TIMESTAMP'] = date_time_obj
-                    print (json_obj)              
+                    print(f"{json_obj} \n\n")
                     self.index_document(index_name, count, json_obj)
                     # print(index_name + count + "\n")
                     count += 1
