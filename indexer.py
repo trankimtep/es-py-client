@@ -35,7 +35,7 @@ class Indexer:
         # If you don't need to specify settings or mappings, you can omit the `data` parameter in the request
         index_configuration = {
             "settings": {
-                "index.default_pipeline": "add-timestamp" 
+                "index.default_pipeline": f"add-timestamp-{index_name}"
             }
         }
         
@@ -49,9 +49,9 @@ class Indexer:
         else:
             print(f"Failed to create or update index. Status code: {response.status_code}, Response: {response.text}")
 
-    def create_timestamp_pipeline(self, es_endpoint):
+    def create_timestamp_pipeline(self, es_endpoint, index_name):
         # Construct the URL for the ingest pipeline API
-        url = f"{es_endpoint}/_ingest/pipeline/add-timestamp"
+        url = f"{es_endpoint}/_ingest/pipeline/add-timestamp-{index_name}"
         
         # Define the payload for the pipeline
         payload = {
@@ -78,7 +78,7 @@ class Indexer:
     def check_and_index(self):
         print (f"Indexing doc to {self.service}_log")
         index_name = self.service + "_log"
-        self.create_timestamp_pipeline(self.es_endpoint)
+        self.create_timestamp_pipeline(self.es_endpoint, index_name)
         self.create_index(self.es_endpoint, index_name)
         # count = self.gen_id(self.es_endpoint, index_name)
         count = 1
