@@ -31,7 +31,7 @@ class LogReader:
 
     def read_logs(self):
         while not self.stop_event.is_set():
-            command = ["journalctl", "-u", self.service, "-n", "100", "-r" , "-o", "json"]
+            command = ["journalctl", "-u", self.service, "-n", "50", "-r" , "-o", "json"]
             process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
             try:
